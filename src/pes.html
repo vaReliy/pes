@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PES</title>
+</head>
+<body>
+<script>
+
+    var FPS = 60;
+    var WIDTH = 800;
+    var HEIGHT = 500;
+    var RECT_SIDE_W = 37.5;
+    var RECT_SIDE_H = 60;
+    var SPEED = 200;
+
+    var _mouseX = WIDTH/2;
+    var _mouseY = HEIGHT/2;
+    var _currentRenderTime, _deltaRenderTime, _lastRenderTime;
+    var scaleTime = Date.now();
+
+    var _canvas, _context, _jakeImg, _pes;
+
+    init();
+    render();
+
+    /*document.addEventListener('visibilitychange', function(event)
+    {
+        console.log(event);
+    });*/
+
+    function init()
+    {
+        _canvas = document.createElement("canvas");
+        _canvas.onmousemove = onMouseMove;
+        _canvas.width = WIDTH;
+        _canvas.height = HEIGHT;
+        _context = _canvas.getContext("2d");
+        document.body.appendChild( _canvas );
+
+        var textures = [];
+        _jakeImg = new Image();
+        _jakeImg.src = "../resourses/jake.png";
+
+        _jakeImg.onload = function ()
+        {
+            textures = generateTextures();
+            _pes = new Pes(WIDTH/2, HEIGHT/2, RECT_SIDE_W, RECT_SIDE_H, textures, _context);
+        };
+    }
+
+
+    function generateTextures()
+    {
+        var arr = [], x = 0, y = 180, w = RECT_SIDE_W, h = RECT_SIDE_H, currentFrameIndex = 0;
+        var obj =
+        {
+            dx: x,
+            dy: y,
+            dw: w,
+            dh: h,
+            currentFrameIndex: currentFrameIndex
+        };
+        var frame = new JakeFrame(obj);
+        arr.push(frame);
+        obj.dy -= h*2;
+        for (var i=1; i < 9; i++)
+        {
+            if (i != 1)
+                obj.dx += w;
+            obj.currentFrameIndex = i;
+            frame = new JakeFrame(obj);
+            arr.push(frame);
+        }
+        return arr;
+    }
+
+    function render() {
+
+        _currentRenderTime = Date.now();
+        _deltaRenderTime = _currentRenderTime - _lastRenderTime;
+
+        globalUpdate();
+        globalRender();
+        requestAnimationFrame( render );
+
+        _lastRenderTime = _currentRenderTime;
+    }
+
+    function globalRender()
+    {
+        _context.clearRect(0, 0, WIDTH, HEIGHT);
+        _context.strokeRect(0, 0, WIDTH, HEIGHT);
+
+        if (_pes) //TODO: insert in proto function
+        {
+            _pes.draw();
+        }
+    }
+
+    function globalUpdate()
+    {
+        if (_pes) //TODO: insert in proto function
+        {
+            _pes.updatePosition(_mouseX, _mouseY);
+        }
+    }
+
+    function onMouseMove(event)
+    {
+        _mouseX = event.offsetX;
+        _mouseY = event.offsetY;
+    }
+
+
+    /* class JakeFrame */
+    function JakeFrame(frameObject)
+    {
+        this.dx = frameObject.dx;
+        this.dy = frameObject.dy;
+        this.dw = frameObject.dw;
+        this.dh = frameObject.dh;
+        this.currentFrameIndex = frameObject.currentFrameIndex;
+
+    }
+
+
+    /* class Pes */
+    function Pes(x, y, w, h, textures, context)
+    {
+        this.x = x;
+        this.y = y;
+        this.width = w;
+        this.height = h;
+        this.context = context;
+
+        this.isMoved = false;
+        this.isMovedLeft = false;
+        this.currentFrameIndex = 0;
+        this.textures = textures;
+        this.fps = 15;
+        this.lastAnimationTime = 0;
+
+        this.drawX = function(x)
+        {
+            return (x - this.width / 2);
+        };
+        this.drawY = function(y)
+        {
+            return (y - this.height / 2);
+        };
+
+    }
+
+    Pes.prototype.incrementMovingFrame = function()
+    {
+        if (this.currentFrameIndex < this.textures.length-1)
+            this.currentFrameIndex++;
+        if (this.currentFrameIndex == this.textures.length-1)
+            this.currentFrameIndex = 1;
+    };
+
+
+    Pes.prototype.draw = function()
+    {
+        if (this.isMoved)
+        {
+            var dt = _currentRenderTime - this.lastAnimationTime;
+            if (dt > 1e3/this.fps)
+            {
+                this.incrementMovingFrame();
+                this.lastAnimationTime = _currentRenderTime;
+            }
+        }
+        else
+        {
+            this.currentFrameIndex = 0;
+        }
+
+        var currentFrame = this.textures[this.currentFrameIndex];
+        if (currentFrame == undefined)
+            return;
+
+        /*var scaleCoef = 1;
+        if ( (_currentRenderTime - scaleTime) / 1e3 > 5 )
+        {
+            scaleCoef = 1.5;
+        }*/
+//        var scaleX = this.isMovedLeft ? -scaleCoef : scaleCoef;
+        var scaleX = this.isMovedLeft ? -1 : 1;
+        this.context.save();
+        this.context.translate(this.x, this.y);
+        this.context.scale(scaleX, 1);
+//        this.context.scale(scaleX, scaleCoef);
+        this.context.drawImage(_jakeImg, currentFrame.dx , currentFrame.dy, currentFrame.dw, currentFrame.dh, this.drawX(0), this.drawY(0), this.width, this.height);
+        this.context.restore();
+    };
+
+    Pes.prototype.updatePosition = function(x, y)
+    {
+        var     x1  = this.x,
+                y1  = this.y,
+                x2 = x,
+                y2 = y;
+
+        if (!collision())
+        {
+            var totalS = Math.sqrt( (Math.pow( (x2 - x1), 2 )) + (Math.pow( (y2 - y1), 2 )) );
+            var currS = SPEED * _deltaRenderTime / 1e3;
+
+            var dx = (currS * (x2 - x1) / totalS);
+            var dy = (currS * (y2 - y1) / totalS);
+
+            this.isMovedLeft = !(dx >= 0);
+
+            this.x += dx;
+            this.y += dy;
+
+            // корректировка, чтобы не "уехал" влево-вверх:
+            if (this.x <= 0)
+                this.x = RECT_SIDE_W;
+            if (this.x >= WIDTH)
+                this.x = WIDTH - RECT_SIDE_W/2;
+            if (this.y <= 0)
+                this.y = RECT_SIDE_H;
+            if (this.y >= HEIGHT)
+                this.y = HEIGHT - RECT_SIDE_H/2;
+
+            this.isMoved = true;
+        }
+        else
+        {
+            this.isMoved = false;
+        }
+
+        function collision()
+        {
+            return Math.abs(x1 - x2) < RECT_SIDE_W/2 && Math.abs(y1 - y2) < RECT_SIDE_H/2;
+        }
+    };
+
+
+
+</script>
+</body>
+</html>
