@@ -45,7 +45,7 @@
         _jakeImg.onload = function ()
         {
             textures = generateTextures();
-            _pes = new Pes(WIDTH/2, HEIGHT/2, RECT_SIDE_W, RECT_SIDE_H, textures, _context);
+            _pes = new Pes(WIDTH/2, HEIGHT/2, RECT_SIDE_W, RECT_SIDE_H, textures, _context, FPS/4);
         };
     }
 
@@ -126,19 +126,19 @@
 
 
     /* class Pes */
-    function Pes(x, y, w, h, textures, context)
+    function Pes(x, y, w, h, textures, context, fps)
     {
         this.x = x;
         this.y = y;
         this.width = w;
         this.height = h;
+        this.textures = textures;
         this.context = context;
+        this.fps = fps;
 
         this.isMoved = false;
         this.isMovedLeft = false;
         this.currentFrameIndex = 0;
-        this.textures = textures;
-        this.fps = 15;
         this.lastAnimationTime = 0;
 
         this.drawX = function(x)
