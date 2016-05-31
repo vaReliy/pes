@@ -19,7 +19,7 @@
     var _currentRenderTime, _deltaRenderTime, _lastRenderTime;
     var scaleTime = Date.now();
 
-    var _canvas, _context, _jakeImg, _pes;
+    var _canvas, _context, _jakeImg, _pes, _rocket;
 
     init();
     render();
@@ -32,7 +32,8 @@
     function init()
     {
         _canvas = document.createElement("canvas");
-        _canvas.onmousemove = onMouseMove;
+//        _canvas.onmousemove = onMouseMove;
+        _canvas.onmouseup = onMouseUp;
         _canvas.width = WIDTH;
         _canvas.height = HEIGHT;
         _context = _canvas.getContext("2d");
@@ -46,6 +47,7 @@
         {
             textures = generateTextures();
             _pes = new Pes(WIDTH/2, HEIGHT/2, RECT_SIDE_W, RECT_SIDE_H, textures, _context, FPS/4);
+            _rocket = new Rocket(0, 0, 10, 10, null, _context, FPS/4);
         };
     }
 
@@ -96,20 +98,34 @@
         {
             _pes.draw();
         }
+        if (_rocket)
+        {
+            _rocket.draw();
+        }
     }
 
     function globalUpdate()
     {
         if (_pes) //TODO: insert in proto function
         {
-            _pes.updatePosition(_mouseX, _mouseY);
+//            _pes.updatePosition(_mouseX, _mouseY);
+            _pes.x = _mouseX;
+            _pes.y = _mouseY;
         }
+        if(_rocket)
+            _rocket.updateTarget(_pes.x, _pes.y);
     }
 
     function onMouseMove(event)
     {
         _mouseX = event.offsetX;
         _mouseY = event.offsetY;
+    }
+
+    function onMouseUp(event)
+    {
+        onMouseMove(event);
+        console.log("up! _mouseX=" + _mouseX + ", _mouseY=" + _mouseY);
     }
 
 
@@ -203,7 +219,7 @@
                 x2 = x,
                 y2 = y;
 
-        if (!collision())
+        if (!collision(this.width, this.height))
         {
             var totalS = Math.sqrt( (Math.pow( (x2 - x1), 2 )) + (Math.pow( (y2 - y1), 2 )) );
             var currS = SPEED * _deltaRenderTime / 1e3;
@@ -218,13 +234,13 @@
 
             // корректировка, чтобы не "уехал" влево-вверх:
             if (this.x <= 0)
-                this.x = RECT_SIDE_W;
+                this.x = this.width;
             if (this.x >= WIDTH)
-                this.x = WIDTH - RECT_SIDE_W/2;
+                this.x = WIDTH - this.width/2;
             if (this.y <= 0)
-                this.y = RECT_SIDE_H;
+                this.y = this.height;
             if (this.y >= HEIGHT)
-                this.y = HEIGHT - RECT_SIDE_H/2;
+                this.y = HEIGHT - this.height/2;
 
             this.isMoved = true;
         }
@@ -233,12 +249,120 @@
             this.isMoved = false;
         }
 
-        function collision()
+        function collision(w, h)
         {
-            return Math.abs(x1 - x2) < RECT_SIDE_W/2 && Math.abs(y1 - y2) < RECT_SIDE_H/2;
+            return Math.abs(x1 - x2) < w/2 && Math.abs(y1 - y2) < h/2;
         }
     };
+    /* class Rocket */
+    function Rocket(x, y, w, h, textures, context, fps)
+    {
+        this.x = x;
+        this.y = y;
+        this.width = w;
+        this.height = h;
+        this.textures = textures;
+        this.context = context;
+        this.fps = fps;
 
+        this.targetX = 0;
+        this.targetY = 0;
+        this.rotateRadius = 45;
+        this.isMoved = false;
+        this.currentFrameIndex = 0;
+        this.lastAnimationTime = 0;
+
+        this.drawX = function(x)
+        {
+            return (x - this.width / 2);
+        };
+        this.drawY = function(y)
+        {
+            return (y - this.height / 2);
+        };
+    }
+
+    Rocket.prototype.draw = function()
+    {
+        this.context.save();
+        this.context.translate(this.x, this.y);
+        this.context.fillStyle = "red";
+//        this.context.drawImage(_rocketImg, currentFrame.dx , currentFrame.dy, currentFrame.dw, currentFrame.dh, this.drawX(0), this.drawY(0), this.width, this.height);
+        this.context.fillRect(this.drawX(0), this.drawY(0), this.width, this.height);
+        this.context.restore();
+    };
+
+    Rocket.prototype.updatePosition = function(x, y)
+    {
+        this.x = x;
+        this.y = y;
+    };
+
+    Rocket.prototype.updateTarget = function(x, y)
+    {
+
+        this.targetX = x;
+        this.targetY = y;
+
+        var     x1  = this.x,
+                y1  = this.y,
+                x2 = this.targetX,
+                y2 = this.targetY;
+
+        calculateAngle();
+
+        if (!collision(this.width, this.height))
+        {
+            if (!needChangeDirection(this.rotateRadius))
+            {
+                var totalS = Math.sqrt( (Math.pow( (x2 - x1), 2 )) + (Math.pow( (y2 - y1), 2 )) );
+                var currS = SPEED/2 * _deltaRenderTime / 1e3;
+
+                var dx = (currS * (x2 - x1) / totalS);
+                var dy = (currS * (y2 - y1) / totalS);
+
+                this.x += dx;
+                this.y += dy;
+            }
+            else
+            {
+                //TODO
+            }
+        }
+
+
+        function collision(w, h)
+        {
+            return Math.abs(x1 - x2) < w/2 && Math.abs(y1 - y2) < h/2;
+        }
+
+        function needChangeDirection(rotateRadius)
+        {
+//            return Math.abs(x1 - x2) > 2*rotateRadius && Math.abs(y1 - y2) > 2*rotateRadius;
+            var ds = Math.sqrt( (Math.pow( (x2 - x1), 2 )) + (Math.pow( (y2 - y1), 2 )) );
+
+            var needChangeDirection = ds < 2*rotateRadius;
+            if (needChangeDirection)
+            {
+                console.log("rotateRadius: " + rotateRadius + ", ds: " + ds);
+                console.log();
+            }
+            return needChangeDirection;
+        }
+
+        function calculateAngle()
+        {
+            var angle = Math.atan((y2 - y1) / (x2 - x1)) * 180 / Math.PI;
+            if (x2 - x1 < 0 && y2 - y1 > 0)
+                angle = 180 + angle;
+            if (x2 - x1 < 0 && y2 - y1 < 0)
+                angle = 180 + angle;
+            if (x2 - x1 > 0 && y2 - y1 < 0)
+                angle = 360 + angle;
+            console.log("angle = " + angle);
+            return angle;
+        }
+    };
 
 
 </script>
